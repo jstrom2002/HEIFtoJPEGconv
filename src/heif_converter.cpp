@@ -1,89 +1,72 @@
 #include "heif_converter.h"
 #include "Util.h"
-#include <jpeglib.h>
 #include <fstream>
 #include <sstream>
 #include <cassert>
-#include <jpeglib.h>
-
+#include <libpng16/png.h>
+#include <libpng16/pngconf.h>
+#include <libpng16/pnglibconf.h>
 
 namespace HEIFtoJPEG
 {
-    struct ErrorHandler
+    void heif_converter::Convert(const char* input_filename, int format_, float in_quality_)
     {
-        struct jpeg_error_mgr pub;  /* "public" fields */
-        jmp_buf setjmp_buffer;  /* for return to caller */
-    };
+        switch (format_) {
+        case 1:
+            format = JPG;
+            break;
+        case 2:
+            format = PNG;
+            break;
+        }
 
-    void heif_converter::ConvertToJPEG(const char* input_filename)
-    {
-        std::string f_ext = getExtension(input_filename);
+        filename = input_filename;
+        this->quality_ = in_quality_;
+        std::string f_ext = getExtension(filename);
         if (f_ext != ".heic")
             return;
 
-        std::string output_dir = getDirectory(input_filename);
-        std::string output_filename = getFilename(input_filename);
-        output_filename = output_filename.substr(0, output_filename.rfind(".")) + ".jpg";// remove extension, replace w/ jpeg.
-        output_filename = output_dir + "\\" + output_filename;
+        output_dir = getDirectory(filename);
 
-        std::ifstream istr(input_filename, std::ios_base::binary);
+        // Validation using heif's built-in methods.
+        std::ifstream istr(filename.c_str(), std::ios_base::in | std::ios_base::binary);
         uint8_t magic[12];
         istr.read((char*)magic, 12);
         enum heif_filetype_result filetype_check = heif_check_filetype(magic, 12);
-        if (filetype_check == heif_filetype_no) {
-            fprintf(stderr, "Input file is not an HEIF/AVIF file\n");
-            return;
-        }
+        if (filetype_check == heif_filetype_no)
+            HEIF_CONVERTER_EXCEPTION("Input file is not an HEIF/AVIF file\n");       
 
-        if (filetype_check == heif_filetype_yes_unsupported) {
-            fprintf(stderr, "Input file is an unsupported HEIF/AVIF file type\n");
-            return;
-        }
+        if (filetype_check == heif_filetype_yes_unsupported) 
+            HEIF_CONVERTER_EXCEPTION("Input file is an unsupported HEIF/AVIF file type\n");
+        
+        istr.close();
 
 
 
         // --- read the HEIF file
-
         ctx = heif_context_alloc();
-        if (!ctx) {
-            fprintf(stderr, "Could not create context object\n");
-            return;
-        }
+        if (!ctx)
+            HEIF_CONVERTER_EXCEPTION("Could not create context object\n");        
 
-        struct heif_error err;
-        err = heif_context_read_from_file(ctx, input_filename, nullptr);
-        if (err.code != 0) {
+        err = heif_context_read_from_file(ctx, filename.c_str(), nullptr);
+        if (err.code != 0)
             HEIF_CONVERTER_EXCEPTION("Could not read HEIF/AVIF file: " + std::string(err.message) + "\n");
-            return;
-        }
 
         int num_images = heif_context_get_number_of_top_level_images(ctx);
-        if (num_images == 0) {
-            fprintf(stderr, "File doesn't contain any images\n");
-            return;
-        }
+        if (num_images == 0)
+            HEIF_CONVERTER_EXCEPTION("File doesn't contain any images\n");        
 
-        std::vector<heif_item_id> image_IDs(num_images);
+
+        image_IDs.resize(num_images,0);
         num_images = heif_context_get_list_of_top_level_image_IDs(ctx, image_IDs.data(), num_images);
 
-
-        std::string filename;
-        size_t image_index = 1;  // Image filenames are "1" based.
-
         for (int idx = 0; idx < num_images; ++idx) {
+            output_filename = getFilename(filename);            
+            output_filename = output_filename.substr(0, output_filename.rfind("."));
+            output_filename += "-" + std::to_string(idx);
+            appendFileExt(output_filename);
+            output_filename = output_dir + "\\" + output_filename;
 
-            if (num_images > 1) {
-                std::ostringstream s;
-                s << output_filename.substr(0, output_filename.find_last_of('.'));
-                s << "-" << image_index;
-                s << output_filename.substr(output_filename.find_last_of('.'));
-                filename.assign(s.str());
-            }
-            else {
-                filename.assign(output_filename);
-            }
-
-            struct heif_image_handle* handle;
             err = heif_context_get_image_handle(ctx, image_IDs[idx], &handle);
             if (err.code) {
                 HEIF_CONVERTER_EXCEPTION("Could not read HEIF/AVIF image " + idx + std::string(": ") + err.message + "\n");
@@ -100,11 +83,9 @@ namespace HEIFtoJPEG
             if (bit_depth < 0) {
                 heif_decoding_options_free(decode_options);
                 heif_image_handle_release(handle);
-                //std::cerr << "Input image has undefined bit-depth\n";
-                return;
+                HEIF_CONVERTER_EXCEPTION("Input image has undefined bit-depth\n");
             }
 
-            struct heif_image* image;
             err = heif_decode_image(handle,
                 &image,
                 colorspace(has_alpha),
@@ -117,17 +98,125 @@ namespace HEIFtoJPEG
                 return;
             }
 
-            //// show decoding warnings
-            //for (int i = 0;; i++) {
-            //    int n = heif_image_get_decoding_warnings(image, i, &err, 1);
-            //    if (n == 0) {
-            //        break;
-            //    }
-            //    std::cerr << "Warning: " << err.message << "\n";
-            //}
 
+            switch (format) {
+            case JPG:
+                ConvertToJPEG();
+                break;
+            case PNG:
+                ConvertToPNG();
+                break;
+            }
+        }
+    }
+
+    void heif_converter::ConvertToPNG()
+    {
+       png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
+            nullptr, nullptr);
+        if (!png_ptr) {
+            HEIF_CONVERTER_EXCEPTION("libpng initialization failed (1)\n");
+            return;
+        }
+
+        png_infop info_ptr = png_create_info_struct(png_ptr);
+        if (!info_ptr) {
+            png_destroy_write_struct(&png_ptr, nullptr);
+            HEIF_CONVERTER_EXCEPTION("libpng initialization failed (2)\n");
+            return;
+        }
+
+        FILE* fp = fopen(filename.c_str(), "wb");
+        if (!fp) {
+            HEIF_CONVERTER_EXCEPTION("Can't open " + std::string(filename.c_str()) + strerror(errno));
+            png_destroy_write_struct(&png_ptr, &info_ptr);
+            return;
+        }
+
+        if (setjmp(png_jmpbuf(png_ptr))) {
+            png_destroy_write_struct(&png_ptr, &info_ptr);
+            fclose(fp);
+            HEIF_CONVERTER_EXCEPTION( "Error while encoding image\n");
+            return;
+        }
+
+        png_init_io(png_ptr, fp);
+
+        bool withAlpha = (heif_image_get_chroma_format(image) == heif_chroma_interleaved_RGBA ||
+            heif_image_get_chroma_format(image) == heif_chroma_interleaved_RRGGBBAA_BE);
+
+        int width = heif_image_get_width(image, heif_channel_interleaved);
+        int height = heif_image_get_height(image, heif_channel_interleaved);
+
+        int bitDepth;
+        int input_bpp = heif_image_get_bits_per_pixel_range(image, heif_channel_interleaved);
+        if (input_bpp > 8) {
+            bitDepth = 16;
+        }
+        else {
+            bitDepth = 8;
+        }
+
+        const int colorType = withAlpha ? PNG_COLOR_TYPE_RGBA : PNG_COLOR_TYPE_RGB;
+
+        png_set_IHDR(png_ptr, info_ptr, width, height, bitDepth, colorType,
+            PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+
+        size_t profile_size = heif_image_handle_get_raw_color_profile_size(handle);
+        if (profile_size > 0) {
+            uint8_t* profile_data = static_cast<uint8_t*>(malloc(profile_size));
+            heif_image_handle_get_raw_color_profile(handle, profile_data);
+            char profile_name[] = "unknown";
+            png_set_iCCP(png_ptr, info_ptr, profile_name, PNG_COMPRESSION_TYPE_BASE,
+#if PNG_LIBPNG_VER < 10500
+                (png_charp)profile_data,
+#else
+                (png_const_bytep)profile_data,
+#endif
+                (png_uint_32)profile_size);
+            free(profile_data);
+        }
+        png_write_info(png_ptr, info_ptr);
+
+        uint8_t** row_pointers = new uint8_t * [height];
+
+        int stride_rgb;
+        const uint8_t* row_rgb = heif_image_get_plane_readonly(image,
+            heif_channel_interleaved, &stride_rgb);
+
+        for (int y = 0; y < height; ++y) {
+            row_pointers[y] = const_cast<uint8_t*>(&row_rgb[y * stride_rgb]);
+        }
+
+        if (bitDepth == 16) {
+            // shift image data to full 16bit range
+
+            int shift = 16 - input_bpp;
+            if (shift > 0) {
+                for (int y = 0; y < height; ++y) {
+                    for (int x = 0; x < stride_rgb; x += 2) {
+                        uint8_t* p = (&row_pointers[y][x]);
+                        int v = (p[0] << 8) | p[1];
+                        v = (v << shift) | (v >> (16 - shift));
+                        p[0] = (uint8_t)(v >> 8);
+                        p[1] = (uint8_t)(v & 0xFF);
+                    }
+                }
+            }
+        }
+
+
+        png_write_image(png_ptr, row_pointers);
+        png_write_end(png_ptr, nullptr);
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        delete[] row_pointers;
+        fclose(fp);
+    }
+
+    void heif_converter::ConvertToJPEG()
+    {
             if (image) {
-                bool written = Encode(handle, image, filename);
+                bool written = Encode(handle, image, output_filename);
                 if (!written) {
                     HEIF_CONVERTER_EXCEPTION("could not write image\n");
                 }
@@ -165,12 +254,7 @@ namespace HEIFtoJPEG
                             return;
                         }
 
-                        std::ostringstream s;
-                        s << output_filename.substr(0, output_filename.find('.'));
-                        s << "-depth";
-                        s << output_filename.substr(output_filename.find('.'));
-
-                        written = Encode(depth_handle, depth_image, s.str());
+                        written = Encode(depth_handle, depth_image, output_filename);
                         if (!written) {
                             HEIF_CONVERTER_EXCEPTION("could not write depth image\n");
                         }
@@ -230,12 +314,7 @@ namespace HEIFtoJPEG
 
                             heif_image_handle_free_auxiliary_types(aux_handle, &auxTypeC);
 
-                            std::ostringstream s;
-                            s << output_filename.substr(0, output_filename.find('.'));
-                            s << "-" + auxType;
-                            s << output_filename.substr(output_filename.find('.'));
-
-                            std::string auxFilename = s.str();
+                            std::string auxFilename = output_filename;
 
                             if (option_no_colons) {
                                 std::replace(auxFilename.begin(), auxFilename.end(), ':', '_');
@@ -254,13 +333,10 @@ namespace HEIFtoJPEG
 
                 heif_image_handle_release(handle);
             }
-
-            image_index++;
-        }
+        image_index++;        
     }
 
-    void heif_converter::UpdateDecodingOptions(const struct heif_image_handle* handle,
-        struct heif_decoding_options* options) const
+    void UpdateDecodingOptions(const struct heif_image_handle* handle,  struct heif_decoding_options* options)
     {
         if (HasExifMetaData(handle)) {
             options->ignore_transformations = 1;
@@ -402,7 +478,7 @@ namespace HEIFtoJPEG
     static const char kMetadataTypeExif[] = "Exif";
 
     // static
-    bool heif_converter::HasExifMetaData(const struct heif_image_handle* handle)
+    bool HasExifMetaData(const struct heif_image_handle* handle)
     {
 
         heif_item_id metadata_id;
@@ -412,7 +488,7 @@ namespace HEIFtoJPEG
     }
 
     // static
-    uint8_t* heif_converter::GetExifMetaData(const struct heif_image_handle* handle, size_t* size)
+    uint8_t* GetExifMetaData(const struct heif_image_handle* handle, size_t* size)
     {
         heif_item_id metadata_id;
         int count = heif_image_handle_get_list_of_metadata_block_IDs(handle, kMetadataTypeExif,

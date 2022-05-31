@@ -33,7 +33,6 @@ static void resize_callback(GLFWwindow* win, int w, int h) {
 
     HEIFtoJPEG::ui->window_width = w;
     HEIFtoJPEG::ui->window_height = h;
-    HEIFtoJPEG::ui->fileDialogSize = ImVec2(w * 0.75, h * 0.7);
 }
 
 bool initializeGLFW() {
@@ -55,7 +54,7 @@ bool initializeGLFW() {
     glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
     glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
     //glfwWindowHint(GLFW_ALPHA_BITS, 8);
-    glfwWindowHint(GLFW_REFRESH_RATE, 60);
+    glfwWindowHint(GLFW_REFRESH_RATE, GLFW_DONT_CARE);
     glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_FALSE);
@@ -63,9 +62,8 @@ bool initializeGLFW() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-    glfwWindowHint(GLFW_SAMPLES, 16);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    glfwSwapInterval(60); // 60 fps vsync.
+    glfwSwapInterval(0); // 60 fps vsync.
     HEIFtoJPEG::window = glfwCreateWindow(w, h, "HEIF to JPEG", nullptr, nullptr);
     w = mode->width, h = mode->height;
     if (HEIFtoJPEG::window == nullptr) {
@@ -155,6 +153,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
             glfwPollEvents();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+            HEIFtoJPEG::ui->fileDialogSize = ImVec2(HEIFtoJPEG::ui->window_width * 0.75, HEIFtoJPEG::ui->window_height * 0.7);
             HEIFtoJPEG::ui->render();
 
             if (!glfwWindowShouldClose(HEIFtoJPEG::window))
