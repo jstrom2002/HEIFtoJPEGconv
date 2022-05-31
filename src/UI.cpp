@@ -269,11 +269,45 @@ namespace HEIFtoJPEG
             ImGui::BeginChild("##filepath_combo", ImVec2(window_width * 0.8f, 400), true);
             for (int i = 0; i < to_load_filenames.size(); ++i)
             {
-                ImGui::Button((std::string("X##") + to_load_filenames[i]).c_str());
+                if (ImGui::Button((std::string("X##") + to_load_filenames[i]).c_str()))
+                {
+                    to_load_filenames.erase(to_load_filenames.begin() + i);
+                    --i;
+                    continue;
+                }
                 ImGui::SameLine();
                 ImGui::Text(to_load_filenames[i].c_str());
             }
             ImGui::EndChild();
+
+
+
+            static int out_format_choice = 0;
+            static const char* current_out_format = "JPEG";
+            static float quality_ = 90;
+            static const float default_width_ = 90.0f;
+
+            ImGui::SetNextItemWidth(default_width_);
+            ImGui::SliderFloat("Quality##ui-q-slider", &quality_, 0.0f,100.0f);
+
+            const char* items[] = { "JPEG", "PNG" };
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(default_width_);
+            if (ImGui::BeginCombo("##output_type_combo", current_out_format))
+            {
+                for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+                {
+                    bool is_selected = (current_out_format == items[n]);
+                    if (ImGui::Selectable(items[n], is_selected)) {
+                        current_out_format = items[n];
+                        out_format_choice = n;
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
 
 
             if (ImGui::Button("Browse##file-dialog"))
@@ -284,16 +318,17 @@ namespace HEIFtoJPEG
                     this->fileDialogSize,
                     this->fileDialogPath);
             }
-
             ImGui::SameLine();
             if (ImGui::Button("Convert")) {
                 std::shared_ptr<HEIFtoJPEG::heif_converter> encoder = std::make_shared<HEIFtoJPEG::heif_converter>();
                 for (auto f_ : to_load_filenames)
                 {
-                    encoder->ConvertToJPEG(f_.c_str());
+                    encoder->Convert(f_.c_str(), out_format_choice+1, quality_);
                 }
                 to_load_filenames.clear();
             }
+
+
 
             ImGui::End();
         }
