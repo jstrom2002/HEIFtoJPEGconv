@@ -105,9 +105,6 @@ namespace HEIFtoJPEG
         auto& io = ImGui::GetIO();
         io.MouseClickedPos[button] = io.MousePos;
     }
-    void UI::ScrollCallback(GLFWwindow* window, double xoffset, double yoffset){
-        ui->mouseWheel += static_cast<float>(yoffset);
-    }
     void deleteTextureHelper(ImTextureID tx_){
         GLuint tx = (GLuint)tx_;
         if(tx>0)
@@ -137,9 +134,6 @@ namespace HEIFtoJPEG
     }
 	void UI::init()
 	{
-        if (isInitialized)
-            return;
-
         ImGuiIO& io = ImGui::GetIO(); (void)io;
         io.IniFilename = NULL;								   // Disable loading from .ini file.
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
@@ -184,7 +178,7 @@ namespace HEIFtoJPEG
         {
             //glfwSetCursorPosCallback(window, (GLFWcursorposfun)cursorCallback);
             glfwSetMouseButtonCallback(window, MouseButtonCallback);
-            glfwSetScrollCallback(window, ScrollCallback);
+            //glfwSetScrollCallback(window, ScrollCallback);
             //glfwSetKeyCallback(window, KeyCallback);
             //glfwSetCharCallback(window, CharCallback);
         }
@@ -196,7 +190,6 @@ namespace HEIFtoJPEG
         io.DisplayFramebufferScale.x = static_cast<float>(display_w) / w;
         SetDefaultStyle();
         loadAllEmbeddedFiles();
-        isInitialized = true;
 	}
     void UI::render(){
         ImGui_ImplOpenGL3_NewFrame();
@@ -235,30 +228,17 @@ namespace HEIFtoJPEG
         // Get mouse position in screen coordinates
         glfwGetCursorPos(window, &mousePixels_x, &mousePixels_y);
         io.MousePosPrev = io.MousePos;
-        io.MousePos = ImVec2(static_cast<float>(mousePixels_x),
-            static_cast<float>(this->mousePixels_y));
-
-        //// NEW CODE -- Use ImGui window space coordinates.
-        this->mouseNDC_x = ((this->mousePixels_x / window_width) - 0.5) * 2.0;
-        this->mouseNDC_y = -((this->mousePixels_y / window_height) - 0.5) * 2.0;
-
-        // Get mouse delta.
-        this->mouseDeltaX = this->mouseNDC_x - this->mouseLastNDC_x;
-        this->mouseDeltaY = this->mouseNDC_y - this->mouseLastNDC_y;
+        io.MousePos = ImVec2(static_cast<float>(mousePixels_x),static_cast<float>(this->mousePixels_y));
 
         for (auto i = 0; i < 3; i++)
         {
-            io.MouseDown[i] = this->mousePressed[i] ||
-                glfwGetMouseButton(window, i) != 0;
+            io.MouseDown[i] = this->mousePressed[i] || glfwGetMouseButton(window, i) != 0;
             // If a mouse press event came, always pass it as
             // "this frame", so we don't miss click-release events
             // that are shorter than 1 frame.
             this->mousePressed[i] = false;
         }
 
-        io.MouseWheel = this->mouseWheel;
-        //this->mouseWheel = 0.0f;
-       
         // ========================================================
 
         ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -266,6 +246,7 @@ namespace HEIFtoJPEG
         bool dummyVal = true;
         if (ImGui::Begin("To Convert##file-to-load-child", &dummyVal, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration))
         {
+            ImGui::Text("Files To Convert:");
             ImGui::BeginChild("##filepath_combo", ImVec2(window_width * 0.8f, 400), true);
             for (int i = 0; i < to_load_filenames.size(); ++i)
             {
@@ -281,11 +262,12 @@ namespace HEIFtoJPEG
             ImGui::EndChild();
 
 
-
+            // vars for UI controls.
             static int out_format_choice = 0;
             static const char* current_out_format = "JPEG";
             static float quality_ = 90;
             static const float default_width_ = 90.0f;
+            static bool output_Aux_ = false;
 
             ImGui::SetNextItemWidth(default_width_);
             ImGui::SliderFloat("Quality##ui-q-slider", &quality_, 0.0f,100.0f);
@@ -308,6 +290,9 @@ namespace HEIFtoJPEG
                 ImGui::EndCombo();
             }
 
+            ImGui::SameLine();
+            ImGui::Checkbox("Include Aux Files", &output_Aux_);
+
 
 
             if (ImGui::Button("Browse##file-dialog"))
@@ -323,7 +308,7 @@ namespace HEIFtoJPEG
                 std::shared_ptr<HEIFtoJPEG::heif_converter> encoder = std::make_shared<HEIFtoJPEG::heif_converter>();
                 for (auto f_ : to_load_filenames)
                 {
-                    encoder->Convert(f_.c_str(), out_format_choice+1, quality_);
+                    encoder->Convert(f_.c_str(), out_format_choice+1, quality_, output_Aux_);
                 }
                 to_load_filenames.clear();
             }

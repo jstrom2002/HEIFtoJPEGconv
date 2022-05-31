@@ -24,12 +24,13 @@ namespace HEIFtoJPEG
 	{
 	private:
 		struct heif_context* ctx = nullptr;
-		int option_aux = 0;
+		bool option_aux = 0;
 		int option_no_colons = 0;
 		int quality_ = 90;
 		FORMAT format = UNKNOWN;
 		std::string output_dir = "";
 		std::string output_filename = "";
+		std::string output_aux_filename = "";
 		std::string filename = "";
 		std::vector<heif_item_id> image_IDs;
 		size_t image_index = 1;  // Image filenames are "1" based.
@@ -38,7 +39,7 @@ namespace HEIFtoJPEG
 		struct heif_image* image = nullptr;
 
 	public:
-		void Convert(const char* filename, int format, float quality_ = 90);
+		void Convert(const char* filename, int format, float quality_ = 90, bool outputAux_ = false);
 
 		~heif_converter()
 		{
@@ -50,58 +51,11 @@ namespace HEIFtoJPEG
 
 		void ConvertToJPEG();
 		void ConvertToPNG();
-
-		void HEIF_CONVERTER_EXCEPTION(std::string str) {
-			throw new std::exception(str.c_str());
-		}
-
-		void appendFileExt(std::string& str)
-		{
-			switch (format) {
-			case JPG:
-				str += ".jpg";
-				break;
-			case PNG:
-				str += ".png";
-				break;
-			}
-		}
-
-		heif_colorspace colorspace(bool has_alpha) const
-		{
-			switch (format) {
-			case JPG:
-				return heif_colorspace_YCbCr;
-			case PNG:
-				return heif_colorspace_RGB;
-			}
-
-			return heif_colorspace_undefined;
-		}
-
-		heif_chroma chroma(bool has_alpha, int bit_depth) const
-		{
-			switch (format) {
-			case JPG:
-				return heif_chroma_420;
-			case PNG:
-				if (bit_depth == 8) {
-					if (has_alpha)
-						return heif_chroma_interleaved_RGBA;
-					else
-						return heif_chroma_interleaved_RGB;
-				}
-				else {
-					if (has_alpha)
-						return heif_chroma_interleaved_RRGGBBAA_BE;
-					else
-						return heif_chroma_interleaved_RRGGBB_BE;
-				}
-			}
-
-			return heif_chroma_undefined;
-		}
-
+		void generateOutputFilenames(int i);
+		void HEIF_CONVERTER_EXCEPTION(std::string str);
+		void appendFileExt(std::string& str);
+		heif_colorspace colorspace(bool has_alpha) const;
+		heif_chroma chroma(bool has_alpha, int bit_depth) const;
 		bool Encode(const struct heif_image_handle* handle, const struct heif_image* image, const std::string& filename);
 	};
 }

@@ -1,7 +1,5 @@
 # HEIF to JPEG Converter  
-### _Simple Command Line HEIF to JPEG Converter_  
-
-Build the source with your compiler of choice or simply download the binaries from the \bin folder.  
+### _Simple C++ HEIF to JPEG Converter_  
 
 <br/>
 
