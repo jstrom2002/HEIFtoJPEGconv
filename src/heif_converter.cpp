@@ -9,8 +9,18 @@
 
 namespace HEIFtoJPEG
 {
-    void heif_converter::Convert(const char* input_filename, int format_, float in_quality_)
+    void heif_converter::Convert(const char* input_filename, int format_, float in_quality_, bool outputAux_)
     {
+        // Early exit if not a HEIF file
+        std::string f_ext = getExtension(input_filename);
+        if (f_ext != ".heic")
+            return;
+
+        // Assign vars.
+        filename = input_filename;
+        quality_ = in_quality_;
+        option_aux = outputAux_;
+        output_dir = getDirectory(filename);
         switch (format_) {
         case 1:
             format = JPG;
@@ -20,13 +30,6 @@ namespace HEIFtoJPEG
             break;
         }
 
-        filename = input_filename;
-        this->quality_ = in_quality_;
-        std::string f_ext = getExtension(filename);
-        if (f_ext != ".heic")
-            return;
-
-        output_dir = getDirectory(filename);
 
         // Validation using heif's built-in methods.
         std::ifstream istr(filename.c_str(), std::ios_base::in | std::ios_base::binary);
@@ -61,11 +64,7 @@ namespace HEIFtoJPEG
         num_images = heif_context_get_list_of_top_level_image_IDs(ctx, image_IDs.data(), num_images);
 
         for (int idx = 0; idx < num_images; ++idx) {
-            output_filename = getFilename(filename);            
-            output_filename = output_filename.substr(0, output_filename.rfind("."));
-            output_filename += "-" + std::to_string(idx);
-            appendFileExt(output_filename);
-            output_filename = output_dir + "\\" + output_filename;
+            generateOutputFilenames(idx);
 
             err = heif_context_get_image_handle(ctx, image_IDs[idx], &handle);
             if (err.code) {
@@ -314,7 +313,7 @@ namespace HEIFtoJPEG
 
                             heif_image_handle_free_auxiliary_types(aux_handle, &auxTypeC);
 
-                            std::string auxFilename = output_filename;
+                            std::string auxFilename = output_aux_filename;
 
                             if (option_no_colons) {
                                 std::replace(auxFilename.begin(), auxFilename.end(), ':', '_');
@@ -512,5 +511,69 @@ namespace HEIFtoJPEG
         }
 
         return nullptr;
+    }
+
+    void heif_converter::HEIF_CONVERTER_EXCEPTION(std::string str) {
+        throw new std::exception(str.c_str());
+    }
+
+    void heif_converter::generateOutputFilenames(int i)
+    {
+        output_filename = getFilename(filename);
+        output_filename = output_filename.substr(0, output_filename.rfind("."));
+        output_aux_filename = output_filename;
+        output_filename += "-" + std::to_string(i);
+        output_aux_filename += "-aux" + std::to_string(i);
+        appendFileExt(output_filename);
+        appendFileExt(output_aux_filename);
+        output_filename = output_dir + "\\" + output_filename;
+        output_aux_filename = output_dir + "\\" + output_aux_filename;
+    }
+
+    void heif_converter::appendFileExt(std::string& str)
+    {
+        switch (format) {
+        case JPG:
+            str += ".jpg";
+            break;
+        case PNG:
+            str += ".png";
+            break;
+        }
+    }
+
+    heif_colorspace heif_converter::colorspace(bool has_alpha) const
+    {
+        switch (format) {
+        case JPG:
+            return heif_colorspace_YCbCr;
+        case PNG:
+            return heif_colorspace_RGB;
+        }
+
+        return heif_colorspace_undefined;
+    }
+
+    heif_chroma heif_converter::chroma(bool has_alpha, int bit_depth) const
+    {
+        switch (format) {
+        case JPG:
+            return heif_chroma_420;
+        case PNG:
+            if (bit_depth == 8) {
+                if (has_alpha)
+                    return heif_chroma_interleaved_RGBA;
+                else
+                    return heif_chroma_interleaved_RGB;
+            }
+            else {
+                if (has_alpha)
+                    return heif_chroma_interleaved_RRGGBBAA_BE;
+                else
+                    return heif_chroma_interleaved_RRGGBB_BE;
+            }
+        }
+
+        return heif_chroma_undefined;
     }
 }
