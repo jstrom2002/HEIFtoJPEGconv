@@ -3,7 +3,7 @@
 
 Build the source with your compiler of choice or simply download the binaries from the \bin folder.  
 
-<br/><br/>
+<br/>
 
 ```diff  
 + This project is Free and Open Source Software (FOSS)  
