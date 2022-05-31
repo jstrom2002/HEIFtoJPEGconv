@@ -11,4 +11,9 @@ Build the source with your compiler of choice or simply download the binaries fr
 
 ### Dependencies
 OpenCV4  
+GLEW  
+GLFW  
 libheif  
+
+### Supported Platforms  
+Windows x64  
