@@ -1,12 +1,15 @@
 #include "stdafx.h" 
 #include "UI.h"
 
+using namespace HEIFtoJPEG;
+
 int w = 800;
 int h = 600;
 int display_w, display_h;
 ImFont* default_font;
 
-namespace HEIFtoJPEG {
+namespace HEIFtoJPEG 
+{
     std::shared_ptr<UI> ui = nullptr;
     GLFWwindow* window = nullptr;
     ImTextureID fileID;
@@ -28,11 +31,26 @@ static void errorCallback(int code, const char* description) {
 static void resize_callback(GLFWwindow* win, int w, int h) {
 
     // bail if renderer is closing.
-    if (!HEIFtoJPEG::ui)
+    if (!ui)
         return;
 
-    HEIFtoJPEG::ui->window_width = w;
-    HEIFtoJPEG::ui->window_height = h;
+    auto& io = ImGui::GetIO();
+    int display_w, display_h;
+    glfwGetFramebufferSize(win, &display_w, &display_h);
+    io.DisplaySize.x = static_cast<float>(w);
+    io.DisplaySize.y = static_cast<float>(h);;
+    io.DisplayFramebufferScale.x = static_cast<float>(display_w) / w;
+    io.DisplayFramebufferScale.y = static_cast<float>(display_h) / h;
+    ui->window_width = w;
+    ui->window_height = h;
+}
+
+static void window_close_callback(GLFWwindow* window)
+{
+    if (!ui)
+        return;
+
+    ui->windowClose = true;
 }
 
 bool initializeGLFW() {
@@ -54,7 +72,7 @@ bool initializeGLFW() {
     glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
     glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
     //glfwWindowHint(GLFW_ALPHA_BITS, 8);
-    glfwWindowHint(GLFW_REFRESH_RATE, GLFW_DONT_CARE);
+    glfwWindowHint(GLFW_REFRESH_RATE, 60);//without hardcoding 60 fps, double click events etc are a nightmare.
     glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_FALSE);
@@ -63,20 +81,21 @@ bool initializeGLFW() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    glfwSwapInterval(0); // 60 fps vsync.
-    HEIFtoJPEG::window = glfwCreateWindow(w, h, "HEIF to JPEG", nullptr, nullptr);
+    glfwSwapInterval(1); // 60 fps vsync.
+    window = glfwCreateWindow(w, h, "HEIF to JPEG", nullptr, nullptr);
     w = mode->width, h = mode->height;
-    if (HEIFtoJPEG::window == nullptr) {
+    if (window == nullptr) {
         throw std::exception("Failed to create window");
         glfwTerminate();
         return false;
     }
+    glfwSetWindowCloseCallback(window, window_close_callback);
     glfwSetErrorCallback((GLFWerrorfun)errorCallback);
-    glfwSetWindowSizeCallback(HEIFtoJPEG::window, (GLFWwindowsizefun)resize_callback);
-    glfwMakeContextCurrent(HEIFtoJPEG::window);
-    glfwSetWindowPos(HEIFtoJPEG::window, 0, 30);
-    glfwSetInputMode(HEIFtoJPEG::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    glfwGetFramebufferSize(HEIFtoJPEG::window, &display_w, &display_h);
+    glfwSetWindowSizeCallback(window, (GLFWwindowsizefun)resize_callback);
+    glfwMakeContextCurrent(window);
+    glfwSetWindowPos(window, 0, 30);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwGetFramebufferSize(window, &display_w, &display_h);
 
     return true;
 }
@@ -93,14 +112,14 @@ bool initializeGLEW() {
 bool initializeImGui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGui_ImplGlfw_InitForOpenGL(HEIFtoJPEG::window, true);
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
     const char* glsl_version = "#version 330";
     ImGui_ImplOpenGL3_Init(glsl_version);
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = NULL;								   // Disable loading from .ini file.
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar;
-    glfwSetInputMode(HEIFtoJPEG::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     io.MouseDrawCursor = true;
     io.DisplaySize.x = static_cast<float>(w);
     io.DisplaySize.y = static_cast<float>(h);
@@ -108,6 +127,7 @@ bool initializeImGui() {
     io.DisplayFramebufferScale.y = static_cast<float>(display_h) / h;
     return true;
 }
+
 bool initializeOpenGL() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.3f, 0.3f, 0.3f, 0.f);
@@ -119,6 +139,7 @@ bool initializeOpenGL() {
     glEnable(GL_MULTISAMPLE);
     return true;
 }
+
 bool initialize() {
     bool ret_val = true;
     ret_val &= initializeGLFW();
@@ -127,6 +148,8 @@ bool initialize() {
     ret_val &= initializeOpenGL();
     return ret_val;
 }
+
+
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
 {
 #if defined(_WIN32)||defined(_WIN64)
@@ -143,25 +166,31 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     
     if (!initialize())
         return -1;
-    HEIFtoJPEG::ui = std::make_shared<HEIFtoJPEG::UI>();
-    HEIFtoJPEG::ui->init();
 
+    ui = std::make_shared<UI>();
+    ui->init();
+
+    bool firstRun = true;
     try {
         // Main loop.
-        while (HEIFtoJPEG::window != nullptr && !glfwWindowShouldClose(HEIFtoJPEG::window))
+        while (window != nullptr && !glfwWindowShouldClose(window) && !ui->windowClose)
         {
+            if (firstRun) {
+                glfwSetWindowSize(window, ui->window_width, ui->window_height);
+            }
+
             glfwPollEvents();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            ui->render();
 
-            HEIFtoJPEG::ui->fileDialogSize = ImVec2(HEIFtoJPEG::ui->window_width * 0.75, HEIFtoJPEG::ui->window_height * 0.7);
-            HEIFtoJPEG::ui->render();
+            if (!ui->windowClose && !glfwWindowShouldClose(window))
+                glfwSwapBuffers(window);
 
-            if (!glfwWindowShouldClose(HEIFtoJPEG::window))
-                glfwSwapBuffers(HEIFtoJPEG::window);
+            firstRun = false;
         }
 
         // Shutdown and cleanup.
-        HEIFtoJPEG::ui->terminate();
+        ui->terminate();
         glfwTerminate();
     }
     catch (std::exception e1)

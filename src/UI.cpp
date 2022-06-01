@@ -8,8 +8,8 @@
 
 namespace HEIFtoJPEG 
 {
-
-    void UI::SetDefaultStyle(){
+    void UI::SetDefaultStyle()
+    {
         ImGuiStyle* style = &ImGui::GetStyle();
         style->Alpha = 1.000000;
         style->ChildRounding = 5.000000;
@@ -101,15 +101,18 @@ namespace HEIFtoJPEG
         style->Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.2, 0.2, 0.2, 0.2);
         style->Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.2, 0.2, 0.2, 0.35);
     }
+
     void UI::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods){
         auto& io = ImGui::GetIO();
         io.MouseClickedPos[button] = io.MousePos;
     }
+
     void deleteTextureHelper(ImTextureID tx_){
         GLuint tx = (GLuint)tx_;
         if(tx>0)
             glDeleteTextures(1, &tx);
     }
+
     void UI::terminate(){
         try{
             deleteTextureHelper(fileID);
@@ -132,12 +135,12 @@ namespace HEIFtoJPEG
             //ErrorMessageBox(e1.what());
         } 
     }
+
 	void UI::init()
 	{
-        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        ImGuiIO& io = ImGui::GetIO();
         io.IniFilename = NULL;								   // Disable loading from .ini file.
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
-        ImGuiWindowFlags windowFlags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         io.MouseDrawCursor = true;
         unsigned char* pixels;
@@ -174,53 +177,35 @@ namespace HEIFtoJPEG
 #ifdef _WIN32
         io.ImeWindowHandle = glfwGetWin32Window(window);
 #endif
-        //if (instantCallbacks)
-        {
-            //glfwSetCursorPosCallback(window, (GLFWcursorposfun)cursorCallback);
-            glfwSetMouseButtonCallback(window, MouseButtonCallback);
-            //glfwSetScrollCallback(window, ScrollCallback);
-            //glfwSetKeyCallback(window, KeyCallback);
-            //glfwSetCharCallback(window, CharCallback);
-        }
-        int w, h, display_w, display_h;
-        glfwGetWindowSize(window, &w, &h);
+        glfwSetMouseButtonCallback(window, MouseButtonCallback);
+        int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
-        io.DisplaySize.x = static_cast<float>(w);
-        io.DisplaySize.y = static_cast<float>(h);
-        io.DisplayFramebufferScale.x = static_cast<float>(display_w) / w;
+        io.DisplaySize.x = static_cast<float>(window_width);
+        io.DisplaySize.y = static_cast<float>(window_height);
+        io.DisplayFramebufferScale.x = static_cast<float>(display_w) / window_width;
         SetDefaultStyle();
         loadAllEmbeddedFiles();
+        windowClose = false;
 	}
-    void UI::render(){
+
+    void UI::render()
+    {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         renderUIHelper();
         ImGui::EndFrame();
-        if (window) {
+        if (!windowClose && window) {
             ImGui::Render();
             ImDrawData* imdata = ImGui::GetDrawData();
             ImGui_ImplOpenGL3_RenderDrawData(imdata);
         }
     }
+    
     void UI::renderUIHelper()
     {
-        static auto& io = ImGui::GetIO();
-
-        if (glfwGetWindowAttrib(window, GLFW_RESIZABLE))
-        {
-            // setup display size (every frame to accommodate for window resizing)
-            static int w, h, display_w, display_h;
-            glfwGetWindowSize(window, &w, &h);
-            glfwGetFramebufferSize(window, &display_w, &display_h);
-            io.DisplaySize.x = static_cast<float>(w);
-            io.DisplaySize.y = static_cast<float>(h);;
-            io.DisplayFramebufferScale.x = static_cast<float>(display_w) / w;
-            io.DisplayFramebufferScale.y = static_cast<float>(display_h) / h;
-        }
-
-
         // setup time step
+        static auto& io = ImGui::GetIO();
         static double current_time = glfwGetTime();
         io.DeltaTime = glm::abs(current_time - glfwGetTime());
         current_time = glfwGetTime();
@@ -243,34 +228,47 @@ namespace HEIFtoJPEG
 
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
-        bool dummyVal = true;
-        if (ImGui::Begin("To Convert##file-to-load-child", &dummyVal, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration))
+        if (ImGui::Begin("To Convert##file-to-load-child", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDecoration))
         {
-            ImGui::Text("Files To Convert:");
-            ImGui::BeginChild("##filepath_combo", ImVec2(window_width * 0.8f, 400), true);
-            for (int i = 0; i < to_load_filenames.size(); ++i)
+            ImVec2 child_filename_size = ImVec2(window_width * 0.8f, 400);
+            ImGui::SetNextWindowPos(ImVec2((window_width - child_filename_size.x) * 0.5f, 30));
+            if (ImGui::BeginChild("##filepath_child", child_filename_size, true, ImGuiWindowFlags_AlwaysHorizontalScrollbar))
             {
-                if (ImGui::Button((std::string("X##") + to_load_filenames[i]).c_str()))
+                ImGui::Text("Files to Convert:");
+                ImGui::SetNextItemWidth(xButtonSize.x);
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, xButtonPadding);
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, xButtonRounding);
+                if (ImGui::Button((xButtonLabel + "clear all").c_str(), xButtonSize))
+                    to_load_filenames.clear();
+                ImGui::SameLine(); 
+                ImGui::Text("Clear All");
+                ImGui::Separator();
+                for (int i = 0; i < to_load_filenames.size(); ++i)
                 {
-                    to_load_filenames.erase(to_load_filenames.begin() + i);
-                    --i;
-                    continue;
+                    ImGui::SetNextItemWidth(xButtonSize.x);
+                    if (ImGui::Button((xButtonLabel + to_load_filenames[i]).c_str(), xButtonSize))
+                    {
+                        to_load_filenames.erase(to_load_filenames.begin() + i);
+                        --i;
+                        continue;
+                    }
+                    ImGui::SameLine();
+                    ImGui::Text(to_load_filenames[i].c_str());
                 }
-                ImGui::SameLine();
-                ImGui::Text(to_load_filenames[i].c_str());
+                ImGui::PopStyleVar();
+                ImGui::PopStyleVar();
+                ImGui::EndChild();
             }
-            ImGui::EndChild();
-
 
             // vars for UI controls.
             static int out_format_choice = 0;
             static const char* current_out_format = "JPEG";
-            static float quality_ = 90;
+            static int quality_ = 90;
             static const float default_width_ = 90.0f;
             static bool output_Aux_ = false;
 
             ImGui::SetNextItemWidth(default_width_);
-            ImGui::SliderFloat("Quality##ui-q-slider", &quality_, 0.0f,100.0f);
+            ImGui::SliderInt("Quality##ui-q-slider", &quality_, 0, 100);
 
             const char* items[] = { "JPEG", "PNG" };
             ImGui::SameLine();
@@ -294,47 +292,47 @@ namespace HEIFtoJPEG
             ImGui::Checkbox("Include Aux Files", &output_Aux_);
 
 
+            // ------------------
+
 
             if (ImGui::Button("Browse##file-dialog"))
             {
-                CustomFileDialog::Instance()->OpenDialog(
-                    "Load File",
-                    "Load File",
-                    this->fileDialogSize,
-                    this->fileDialogPath);
+                CustomFileDialog::Instance()->OpenDialog("Load File","Load File",fileDialogSize,CustomFileDialog::Instance()->m_CurrentPath.string());
             }
+            
             ImGui::SameLine();
-            if (ImGui::Button("Convert")) {
+            if (ImGui::Button("Convert")) 
+            {
                 std::shared_ptr<HEIFtoJPEG::heif_converter> encoder = std::make_shared<HEIFtoJPEG::heif_converter>();
                 for (auto f_ : to_load_filenames)
                 {
-                    encoder->Convert(f_.c_str(), out_format_choice+1, quality_, output_Aux_);
+                    encoder->Convert(f_.c_str(), out_format_choice+1, (float)quality_, output_Aux_);
                 }
                 to_load_filenames.clear();
             }
 
-
-
             ImGui::End();
         }
 
-
-
-        if (showFileDialog)
+        if(CustomFileDialog::Instance()->m_ShowDialog)
             FileDialogModalPopup();
     }
-    void UI::FileDialogModalPopup()
-    {
-        ImGui::SetNextWindowPos(ImVec2(
-            0.5f * (window_width - fileDialogSize.x),
-            0.5f * (window_height - fileDialogSize.y)
-        ));
-        ImGui::SetNextWindowSize(fileDialogSize, ImGuiCond_Always);
 
+    void UI::FileDialogModalPopup()
+    {       
+        ImGui::SetNextWindowFocus();
+        ImGui::SetNextWindowPos(ImVec2(0.5f * (window_width - fileDialogSize.x),0.5f * (window_height - fileDialogSize.y)));
+        ImGui::SetNextWindowSize(fileDialogSize, ImGuiCond_Always);
         if (CustomFileDialog::Instance()->FileDialog("Load File", ImGuiWindowFlags_NoCollapse)) {
             if (CustomFileDialog::Instance()->IsOk == true) {
                 try {
-                    to_load_filenames.push_back(CustomFileDialog::Instance()->GetFilepathName());
+                    for (auto fn : CustomFileDialog::Instance()->m_SelectedFileNames) 
+                    {
+                        if(std::filesystem::is_regular_file(fn))
+                            to_load_filenames.push_back(fn);
+
+                    }
+                    CustomFileDialog::Instance()->IsOk = false;
                 }
                 catch (std::exception e1) {
                     //ErrorMessageBox(e1.what());
