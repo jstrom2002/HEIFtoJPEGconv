@@ -29,10 +29,12 @@ namespace HEIFtoJPEG
 #endif
 
 		// Public member variables.
+		bool m_ShowDialog = false;
 		bool IsOk = false;						//boolean for whether a file has been selected or not.
 		bool m_AnyWindowsHovered = false;		//boolean for whether any sub windows are hovered.
 		bool m_CreateDirectoryMode = false;		//boolean for allowing the creation of directories.
 		std::filesystem::path m_CurrentPath;		
+		std::vector<std::string> m_SelectedFileNames;
 
 		// Generic struct to pair file name, type, and other info.	
 		struct FileInfoStruct {
@@ -179,7 +181,6 @@ namespace HEIFtoJPEG
 						&& std::filesystem::exists(contents)) 
 					{
 						*m_CurrentPath = contents;
-						ui->fileDialogPath = contents;
 						m_FileList->clear();
 					}
 				}
@@ -227,7 +228,6 @@ namespace HEIFtoJPEG
 				dlg_key.clear();
 				m_ShowDialog = false;
 			}
-			ui->showFileDialog = false;
 		}
 
 		std::string GetFilepathName() 
@@ -326,7 +326,6 @@ namespace HEIFtoJPEG
 		std::string m_SelectedExt="";
 		std::vector<std::string> m_CurrentPath_Decomposition;
 		std::string m_Name="";
-		bool m_ShowDialog = false;
 		bool m_ShowDrives = false;
 		std::string m_LastSelectedFileName=""; // for shift multi selection
 		ImVec2 windowSize = ImVec2(0, 0);

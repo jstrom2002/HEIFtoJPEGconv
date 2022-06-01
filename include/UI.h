@@ -1,24 +1,25 @@
 #pragma once
 #include "stdafx.h"
 #include <memory>
+#include <string>
 #include "imgui.h"
 
 namespace HEIFtoJPEG
 {
     struct UI
     {
+        // Hardcoded UI values.
+        const std::string xButtonLabel = "X##";
+        const ImVec2 xButtonPadding = ImVec2(5, 5);
+        const float xButtonRounding = 5.0f;
+        const ImVec2 xButtonSize = ImVec2(23,25);
+
         GLuint fontTexture = 0;
-        //double mouseDeltaX = 0;
-        //double mouseDeltaY = 0;
-        //double mouseLastNDC_x=0;
-        //double mouseLastNDC_y=0;
-        bool mouseLook = false;
-        //double mouseNDC_x=0;
-        //double mouseNDC_y=0;
         double mousePixels_x = 0;
         double mousePixels_y = 0;
         bool mousePressed[3] = { false,false,false };
         bool mouseReleased[3] = { false,false,false };
+        bool windowClose = true;
         int window_width = 1280;
         int window_height = 720;
 
@@ -36,8 +37,6 @@ namespace HEIFtoJPEG
         std::vector<unsigned char> getDefaultFont();
        
         // Modal popups.
-        bool showFileDialog = false;
-        std::string fileDialogPath = "";
         ImVec2 fileDialogSize = ImVec2(800, 600);
         void FileDialogModalPopup();
 
