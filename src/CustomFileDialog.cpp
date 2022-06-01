@@ -55,17 +55,12 @@ namespace HEIFtoJPEG {
 		void CustomFileDialog::setFileSelection(bool& res)
 		{
 			res = true;
-			ui->showFileDialog = false;
-			std::string str = m_CurrentPath.string();		
-			ui->fileDialogPath = str;
+			m_ShowDialog = false;
 		}
 
 		void CustomFileDialog::OpenDialog(const std::string& vKey, const char* vName, ImVec2 windowSize_,
 			std::string startingDirectory, ImGuiWindowFlags vFlags) 
 		{
-
-			ui->showFileDialog = true;// set this boolean extern value for use in the rest of the program.
-
 			if (m_ShowDialog) // if already opened, quit
 				return;
 
@@ -98,7 +93,9 @@ namespace HEIFtoJPEG {
 		bool CustomFileDialog::FileDialog(const std::string& vKey, ImGuiWindowFlags vFlags) {
 			bool res = false;
 
-			if (m_ShowDialog && dlg_key == vKey) 
+			static ImGuiIO& io = ImGui::GetIO();
+
+			if (m_ShowDialog && dlg_key == vKey)
 			{
 				std::string name = dlg_name + "##" + dlg_key;
 				if (m_Name != name)
@@ -112,6 +109,14 @@ namespace HEIFtoJPEG {
 				if(ImGui::Begin(std::string(ICON_IMFDLG_FOLDER_OPEN + m_CurrentPath.string()).c_str(),
 					&m_ShowDialog, vFlags | ImGuiWindowFlags_NoScrollbar))
 				{
+					// Handle ctrl+A behavior.
+					if (io.KeyCtrl && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+					{
+						m_SelectedFileNames.clear();
+						for (auto fn : m_FileList)
+							m_SelectedFileNames.push_back(fn.name);
+					}
+
 					m_Name = name;
 					//if (ImGui::IsWindowHovered())
 					//	isPopupHovered = true;
@@ -161,17 +166,35 @@ namespace HEIFtoJPEG {
 						bool isSelected = false;
 						for (int row = 0; row < m_FileList.size(); row++)
 						{
-							isSelected = m_FileList[row].name == m_SelectedFileName;
+							isSelected = std::find(m_SelectedFileNames.begin(), m_SelectedFileNames.end(), m_FileList[row].name) != m_SelectedFileNames.end();//m_FileList[row].name == m_SelectedFileName;
 
 							if (ImGui::Selectable(m_FileList[row].displayName.c_str(), &isSelected, ImGuiSelectableFlags_AllowDoubleClick, fileDialogFileEntrySz))
 							{
 								// Show currently selected filename.
 								m_SelectedFileName = m_FileList[row].name;
+								
+								if (io.KeyCtrl)
+								{
+									auto it = std::find(m_SelectedFileNames.begin(), m_SelectedFileNames.end(), m_FileList[row].name);
+									if (it != m_SelectedFileNames.end())
+									{
+										m_SelectedFileNames.erase(it);
+									}
+									else
+										m_SelectedFileNames.push_back(m_FileList[row].name);
+								}
+								else
+								{
+									m_SelectedFileNames.clear();
+									m_SelectedFileNames.push_back(m_FileList[row].name);
+								}
+
 								strcpy(filenameBuffer, (char*)m_FileList[row].name.c_str());
 
 								if (ImGui::IsMouseDoubleClicked(0))
 								{
-									// NOTE: Double-clicking is the same a selection and then pressing the 'OK' button.
+									m_SelectedFileNames.clear();
+									m_SelectedFileNames.push_back(m_SelectedFileName);
 
 									// If selecting the '..' string, go up a folder in the directory tree.
 									if (m_SelectedFileName == "..") {
@@ -235,8 +258,7 @@ namespace HEIFtoJPEG {
 						}
 						else if (std::filesystem::is_directory(m_CurrentPath.string() + PATH_SEP + m_SelectedFileName))
 						{							
-							m_CurrentPath = std::filesystem::path(
-								m_CurrentPath.string() + PATH_SEP + m_SelectedFileName);
+							m_CurrentPath = std::filesystem::path(m_CurrentPath.string() + PATH_SEP + m_SelectedFileName);
 							resetCurrentFiles();
 							res = false;
 						}
@@ -251,12 +273,6 @@ namespace HEIFtoJPEG {
 						setFileSelection(res);
 						IsOk = false;
 					}
-
-					// Show file type filter combo box.
-					ImGui::Text("Type:");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(fileDialogParentSz.x * 0.85f);
-
 				}
 
 				ImGui::End();
