@@ -1,5 +1,5 @@
-# HEIF to JPEG Converter  
-### _Simple C++ HEIF to JPEG Converter_  
+# HEIF to JPEG/PNG Converter  
+### _Simple C++ HEIF to JPEG/PNG Converter_  
 
 <br/>
 
