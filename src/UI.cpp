@@ -326,10 +326,12 @@ namespace HEIFtoJPEG
         if (CustomFileDialog::Instance()->FileDialog("Load File", ImGuiWindowFlags_NoCollapse)) {
             if (CustomFileDialog::Instance()->IsOk == true) {
                 try {
+                    std::string dir_ = CustomFileDialog::Instance()->m_CurrentPath.string() + PATH_SEP;
                     for (auto fn : CustomFileDialog::Instance()->m_SelectedFileNames) 
                     {
-                        if(std::filesystem::is_regular_file(fn))
-                            to_load_filenames.push_back(fn);
+                        std::string fn_ = dir_ + fn;
+                        if(std::filesystem::is_regular_file(fn_))
+                            to_load_filenames.push_back(fn_);
 
                     }
                     CustomFileDialog::Instance()->IsOk = false;

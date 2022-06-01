@@ -56,6 +56,8 @@ namespace HEIFtoJPEG {
 		{
 			res = true;
 			m_ShowDialog = false;
+			if (m_SelectedFileName.length() > 0 && m_SelectedFileNames.size() == 0)
+				m_SelectedFileNames.push_back(m_SelectedFileName);
 		}
 
 		void CustomFileDialog::OpenDialog(const std::string& vKey, const char* vName, ImVec2 windowSize_,
@@ -209,8 +211,7 @@ namespace HEIFtoJPEG {
 
 									// If selecting a directory, make it the current directory.
 									else if (std::filesystem::is_directory(m_CurrentPath.string() + PATH_SEP + m_SelectedFileName)) {
-										m_CurrentPath = std::filesystem::path(
-											m_CurrentPath.string() + PATH_SEP + m_SelectedFileName);
+										m_CurrentPath = std::filesystem::path(m_CurrentPath.string() + PATH_SEP + m_SelectedFileName);
 										resetCurrentFiles();
 										ImGui::EndChild();
 										ImGui::End();
@@ -219,7 +220,6 @@ namespace HEIFtoJPEG {
 									// Handle case where selection is a root drive directory.
 									else if (m_CurrentPath == "" && std::filesystem::is_directory(m_SelectedFileName)) {
 										m_CurrentPath = m_SelectedFileName;
-										resetCurrentFiles();
 										ImGui::EndChild();
 										ImGui::End();
 										return false;//change to true to allow folder selction
